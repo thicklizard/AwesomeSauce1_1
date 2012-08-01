@@ -1,7 +1,7 @@
-/* arch/arm/mach-msm/qdsp6/pcm_in.c
- *
+/*
  * Copyright (C) 2009 Google, Inc.
  * Copyright (C) 2009 HTC Corporation
+ * Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -19,73 +19,175 @@
 #include <linux/miscdevice.h>
 #include <linux/mutex.h>
 #include <linux/sched.h>
-#include <linux/wait.h>
 #include <linux/uaccess.h>
+#include <linux/spinlock.h>
 #include <linux/slab.h>
-
+#include <linux/wait.h>
 #include <linux/msm_audio.h>
+#include <asm/atomic.h>
+#include <mach/debug_mm.h>
+#include <mach/qdsp6v2/audio_dev_ctl.h>
+#include <mach/qdsp6v2/apr_audio.h>
+#include <mach/qdsp6v2/q6asm.h>
+#include <linux/rtc.h>
 
-#include <mach/msm_qdsp6_audio.h>
+#define MAX_BUF 2
+#define BUFSZ (480 * 8)
+#define BUFFER_SIZE_MULTIPLE 4
+#define MIN_BUFFER_SIZE 160
 
+#define VOC_REC_NONE 0xFF
 
-#define AUDIO_SET_INCALL _IOW(AUDIO_IOCTL_MAGIC, 19, struct msm_voicerec_mode) 
-#define AUDIO_FLAG_INCALL_MIXED       2 
-#define AUDIO_GET_DEV_DRV_VER   _IOR(AUDIO_IOCTL_MAGIC, 56, unsigned) 
-#define DEV_DRV_VER             (8250 << 16 | 1) 
-
-struct pcm { 
-	struct audio_client *ac; 
-	uint32_t sample_rate; 
-	uint32_t channel_count; 
+struct pcm {
+	struct mutex lock;
+	struct mutex read_lock;
+	wait_queue_head_t wait;
+	spinlock_t dsp_lock;
+	struct audio_client *ac;
+	uint32_t sample_rate;
+	uint32_t channel_count;
 	uint32_t buffer_size;
-	uint32_t rec_mode; 
-}; 
+	uint32_t buffer_count;
+	uint32_t rec_mode;
+	uint32_t in_frame_info[MAX_BUF][2];
+	atomic_t in_count;
+	atomic_t in_enabled;
+	atomic_t in_opened;
+	atomic_t in_stopped;
+};
 
-#define BUFSZ (256) 
+static void pcm_in_get_dsp_buffers(struct pcm*,
+				uint32_t token, uint32_t *payload);
 
-void audio_client_dump(struct audio_client *ac);
+void pcm_in_cb(uint32_t opcode, uint32_t token,
+		uint32_t *payload, void *priv)
+{
+	struct pcm *pcm = (struct pcm *) priv;
+	unsigned long flags;
 
-static long q6_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+	spin_lock_irqsave(&pcm->dsp_lock, flags);
+	switch (opcode) {
+	case ASM_DATA_EVENT_READ_DONE:
+		pcm_in_get_dsp_buffers(pcm, token, payload);
+		break;
+	default:
+		break;
+	}
+	spin_unlock_irqrestore(&pcm->dsp_lock, flags);
+}
+
+static void pcm_in_get_dsp_buffers(struct pcm *pcm,
+				uint32_t token, uint32_t *payload)
+{
+	pcm->in_frame_info[token][0] = payload[7];
+	pcm->in_frame_info[token][1] = payload[3];
+	if (atomic_read(&pcm->in_count) <= pcm->buffer_count)
+		atomic_inc(&pcm->in_count);
+	wake_up(&pcm->wait);
+}
+
+static int pcm_in_enable(struct pcm *pcm)
+{
+	if (atomic_read(&pcm->in_enabled))
+		return 0;
+	return q6asm_run(pcm->ac, 0, 0, 0);
+}
+
+static int pcm_in_disable(struct pcm *pcm)
+{
+	int rc = 0;
+
+	if (atomic_read(&pcm->in_opened)) {
+		atomic_set(&pcm->in_enabled, 0);
+		atomic_set(&pcm->in_opened, 0);
+		rc = q6asm_cmd(pcm->ac, CMD_CLOSE);
+
+		atomic_set(&pcm->in_stopped, 1);
+		memset(pcm->in_frame_info, 0,
+				sizeof(char) * pcm->buffer_count * 2);
+		wake_up(&pcm->wait);
+	}
+	return rc;
+}
+
+static int config(struct pcm *pcm)
+{
+	int rc = 0;
+
+	pr_debug("%s: pcm prefill, buffer_size = %d\n", __func__,
+		pcm->buffer_size);
+	rc = q6asm_audio_client_buf_alloc(OUT, pcm->ac,
+				pcm->buffer_size, pcm->buffer_count);
+	if (rc < 0) {
+		pr_aud_err("Audio Start: Buffer Allocation failed \
+						rc = %d\n", rc);
+		goto fail;
+	}
+
+	rc = q6asm_enc_cfg_blk_pcm(pcm->ac, pcm->sample_rate,
+						pcm->channel_count);
+	if (rc < 0) {
+		pr_aud_err("%s: cmd media format block failed", __func__);
+		goto fail;
+	}
+fail:
+	return rc;
+}
+
+static long pcm_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct pcm *pcm = file->private_data;
 	int rc = 0;
 
+	mutex_lock(&pcm->lock);
 	switch (cmd) {
 	case AUDIO_SET_VOLUME:
 		break;
-        case AUDIO_GET_DEV_DRV_VER: { 
-                unsigned int vers = DEV_DRV_VER; 
-                if (copy_to_user((void *) arg, &vers, sizeof(vers))) 
-			rc = -EFAULT;
-		break; 
-        } 
 	case AUDIO_GET_STATS: {
 		struct msm_audio_stats stats;
 		memset(&stats, 0, sizeof(stats));
-		if (copy_to_user((void*) arg, &stats, sizeof(stats)))
-			return -EFAULT;
-		return 0;
+		if (copy_to_user((void *) arg, &stats, sizeof(stats)))
+			rc = -EFAULT;
+		break;
 	}
 	case AUDIO_START: {
-		uint32_t acdb_id;
-		rc = 0;
-
-		if (arg == 0) {
-			acdb_id = 0;
-		} else if (copy_from_user(&acdb_id, (void*) arg, sizeof(acdb_id))) {
+		int cnt = 0;
+		if (atomic_read(&pcm->in_enabled)) {
+			pr_aud_info("%s:AUDIO_START already over\n", __func__);
+			rc = 0;
+			break;
+		}
+		rc = config(pcm);
+		if (rc) {
+			pr_aud_err("%s: IN Configuration failed\n", __func__);
 			rc = -EFAULT;
 			break;
 		}
 
-		if (pcm->ac) {
-			rc = -EBUSY;
-		} else {
-			pcm->ac = q6audio_open_pcm(pcm->buffer_size,
-			pcm->sample_rate, pcm->channel_count,
-			pcm->rec_mode, acdb_id); 
-			if (!pcm->ac) 				
-				rc = -ENOMEM;
+		rc = pcm_in_enable(pcm);
+		if (rc) {
+			pr_aud_err("%s: In Enable failed\n", __func__);
+			rc = -EFAULT;
+			break;
 		}
+
+		atomic_set(&pcm->in_enabled, 1);
+
+		while (cnt++ < pcm->buffer_count)
+			q6asm_read(pcm->ac);
+		pr_info("%s: AUDIO_START session id[%d]\n", __func__,
+							pcm->ac->session);
+
+                if (pcm->rec_mode != VOC_REC_NONE)
+                        msm_enable_incall_recording(pcm->ac->session,
+                        pcm->rec_mode, pcm->sample_rate, pcm->channel_count);
+
+		break;
+	}
+	case AUDIO_GET_SESSION_ID: {
+		if (copy_to_user((void *) arg, &pcm->ac->session,
+					sizeof(unsigned short)))
+			rc = -EFAULT;
 		break;
 	}
 	case AUDIO_STOP:
@@ -94,154 +196,287 @@ static long q6_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	case AUDIO_SET_CONFIG: {
 		struct msm_audio_config config;
-		if (copy_from_user(&config, (void*) arg, sizeof(config))) {
+
+		if (copy_from_user(&config, (void *) arg, sizeof(config))) {
 			rc = -EFAULT;
 			break;
 		}
+		pr_debug("%s: SET_CONFIG: buffer_size:%d channel_count:%d"
+			"sample_rate:%d, buffer_count:%d\n", __func__,
+			config.buffer_size, config.channel_count,
+			config.sample_rate, config.buffer_count);
+
 		if (!config.channel_count || config.channel_count > 2) {
 			rc = -EINVAL;
 			break;
 		}
+
 		if (config.sample_rate < 8000 || config.sample_rate > 48000) {
 			rc = -EINVAL;
 			break;
 		}
-		if (config.buffer_size < 128 || config.buffer_size > 8192) {
+
+		if ((config.buffer_size % (config.channel_count *
+			BUFFER_SIZE_MULTIPLE)) ||
+			(config.buffer_size < MIN_BUFFER_SIZE)) {
+			pr_err("%s: Buffer Size should be multiple of "
+				"[4 * no. of channels] and greater than 160\n",
+				__func__);
 			rc = -EINVAL;
 			break;
 		}
+
 		pcm->sample_rate = config.sample_rate;
-		pcm->channel_count = config.channel_count; 
-		pcm->buffer_size = config.buffer_size; 
+		pcm->channel_count = config.channel_count;
+		pcm->buffer_size = config.buffer_size;
+		pcm->buffer_count = config.buffer_count;
 		break;
 	}
-case AUDIO_SET_INCALL: { 
-		struct msm_voicerec_mode voicerec_mode; 
-		if (copy_from_user(&voicerec_mode, (void *)arg,
-			sizeof(struct msm_voicerec_mode)))
-			return -EFAULT;
-		if (voicerec_mode.rec_mode != AUDIO_FLAG_READ &&
-			voicerec_mode.rec_mode != AUDIO_FLAG_INCALL_MIXED) {
-			pcm->rec_mode = AUDIO_FLAG_READ;
-			pr_err("invalid rec_mode\n");
-			rc = -EINVAL;
-		} else
-			pcm->rec_mode = voicerec_mode.rec_mode;
- 		break;
-  	} 
 	case AUDIO_GET_CONFIG: {
 		struct msm_audio_config config;
-		config.buffer_size = pcm->buffer_size; 
-		config.buffer_count = 2;
+		config.buffer_size = pcm->buffer_size;
+		config.buffer_count = pcm->buffer_count;
 		config.sample_rate = pcm->sample_rate;
-		config.channel_count = pcm->channel_count; 		
+		config.channel_count = pcm->channel_count;
 		config.unused[0] = 0;
 		config.unused[1] = 0;
 		config.unused[2] = 0;
-		if (copy_to_user((void*) arg, &config, sizeof(config))) {
+		if (copy_to_user((void *) arg, &config, sizeof(config)))
 			rc = -EFAULT;
-		}
 		break;
 	}
+	case AUDIO_ENABLE_AUDPRE: {
+
+		uint16_t enable_mask;
+
+		if (copy_from_user(&enable_mask, (void *) arg,
+						sizeof(enable_mask))) {
+			rc = -EFAULT;
+			break;
+		}
+		if (enable_mask & FLUENCE_ENABLE)
+			rc = auddev_cfg_tx_copp_topology(pcm->ac->session,
+					VPM_TX_DM_FLUENCE_COPP_TOPOLOGY);
+		else
+			rc = auddev_cfg_tx_copp_topology(pcm->ac->session,
+					DEFAULT_COPP_TOPOLOGY);
+		break;
+	}
+
+        case AUDIO_SET_INCALL: {
+                if (copy_from_user(&pcm->rec_mode,
+                                   (void *) arg,
+                                   sizeof(pcm->rec_mode))) {
+                        rc = -EFAULT;
+                        pr_err("%s: Error copying in-call mode\n", __func__);
+                        break;
+                }
+
+                if (pcm->rec_mode != VOC_REC_UPLINK &&
+                    pcm->rec_mode != VOC_REC_DOWNLINK &&
+                    pcm->rec_mode != VOC_REC_BOTH) {
+                        rc = -EINVAL;
+                        pcm->rec_mode = VOC_REC_NONE;
+
+                        pr_err("%s: Invalid %d in-call rec_mode\n",
+                               __func__, pcm->rec_mode);
+                        break;
+                }
+
+                pr_debug("%s: In-call rec_mode %d\n", __func__, pcm->rec_mode);
+                break;
+        }
+
 	default:
 		rc = -EINVAL;
+		break;
 	}
+	mutex_unlock(&pcm->lock);
 	return rc;
 }
 
-static int q6_in_open(struct inode *inode, struct file *file)
+static int pcm_in_open(struct inode *inode, struct file *file)
 {
 	struct pcm *pcm;
-	
-	pr_info("pcm_in: open\n");
-	pcm = kzalloc(sizeof(struct pcm), GFP_KERNEL);
+	int rc = 0;
+	struct timespec ts;
+	struct rtc_time tm;
 
+	pcm = kzalloc(sizeof(struct pcm), GFP_KERNEL);
 	if (!pcm)
 		return -ENOMEM;
 
 	pcm->channel_count = 1;
 	pcm->sample_rate = 8000;
 	pcm->buffer_size = BUFSZ;
-	pcm->rec_mode = AUDIO_FLAG_READ;
-	file->private_data = pcm;
-	return 0; 
+	pcm->buffer_count = MAX_BUF;
 
-}
-
-static ssize_t q6_in_read(struct file *file, char __user *buf,
-			  size_t count, loff_t *pos)
-{
-	struct pcm *pcm = file->private_data;
-	struct audio_client *ac;
-	struct audio_buffer *ab;
-	const char __user *start = buf;
-	int xfer;
-	int res;
-
-	ac = pcm->ac;
-
-	if (!ac) {
-		res = -ENODEV;
+	pcm->ac = q6asm_audio_client_alloc((app_cb)pcm_in_cb, (void *)pcm);
+	if (!pcm->ac) {
+		pr_aud_err("%s: Could not allocate memory\n", __func__);
+		rc = -ENOMEM;
 		goto fail;
 	}
-	while (count > 0) {
-		ab = ac->buf + ac->cpu_buf;
 
-		if (ab->used)
-			if (!wait_event_timeout(ac->wait, (ab->used == 0), 5*HZ)) {
-				audio_client_dump(ac);
-				pr_err("pcm_read: timeout. dsp dead?\n");
-				BUG();
-			}
+	mutex_init(&pcm->lock);
+	mutex_init(&pcm->read_lock);
+	spin_lock_init(&pcm->dsp_lock);
+	init_waitqueue_head(&pcm->wait);
 
-		xfer = count;
-		if (xfer > ab->size)
-			xfer = ab->size;
-
-		if (copy_to_user(buf, ab->data, xfer)) {
-			res = -EFAULT;
-			goto fail;
-		}
-
-		buf += xfer;
-		count -= xfer;
-
-		ab->used = 1;
-		q6audio_read(ac, ab);
-		ac->cpu_buf ^= 1;
+	rc = q6asm_open_read(pcm->ac, FORMAT_LINEAR_PCM);
+	if (rc < 0) {
+		pr_aud_err("%s: Cmd Open Failed\n", __func__);
+		goto fail;
 	}
-fail:
-	res = buf - start;
-	return res;
-}
 
-static int q6_in_release(struct inode *inode, struct file *file)
-{
-	int rc = 0;
-	struct pcm *pcm = file->private_data;
+	atomic_set(&pcm->in_stopped, 0);
+	atomic_set(&pcm->in_enabled, 0);
+	atomic_set(&pcm->in_count, 0);
+	atomic_set(&pcm->in_opened, 1);
+
+	pcm->rec_mode = VOC_REC_NONE;
+
+	file->private_data = pcm;
+	getnstimeofday(&ts);
+	rtc_time_to_tm(ts.tv_sec, &tm);
+	pr_aud_info1("[ATS][start_recording][successful] at %lld \
+		(%d-%02d-%02d %02d:%02d:%02d.%09lu UTC)\n",
+		ktime_to_ns(ktime_get()),
+		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
+	pr_aud_info("%s: pcm in open session id[%d]\n", __func__, pcm->ac->session);
+
+	return 0;
+fail:
 	if (pcm->ac)
-		rc = q6audio_close(pcm->ac);
+		q6asm_audio_client_free(pcm->ac);
 	kfree(pcm);
-	pr_info("pcm_out: release\n"); 	
 	return rc;
 }
 
-static struct file_operations q6_in_fops = {
-	.owner		= THIS_MODULE,
-	.open		= q6_in_open,
-	.read		= q6_in_read,
-	.release	= q6_in_release,
-	.unlocked_ioctl	= q6_in_ioctl,
-};
+static ssize_t pcm_in_read(struct file *file, char __user *buf,
+			  size_t count, loff_t *pos)
+{
+	struct pcm *pcm = file->private_data;
+	const char __user *start = buf;
+	void *data;
+	uint32_t offset = 0;
+	uint32_t size = 0;
+	uint32_t idx;
+	int rc = 0;
 
-struct miscdevice q6_in_misc = {
-	.minor	= MISC_DYNAMIC_MINOR,
-	.name	= "msm_pcm_in",
-	.fops	= &q6_in_fops,
-};
+	if (!atomic_read(&pcm->in_enabled))
+		return -EFAULT;
+	mutex_lock(&pcm->read_lock);
+	while (count > 0) {
+		rc = wait_event_timeout(pcm->wait,
+				(atomic_read(&pcm->in_count) ||
+				atomic_read(&pcm->in_stopped)), 5 * HZ);
+		if (!rc) {
+			pr_aud_err("%s: wait_event_timeout failed\n", __func__);
+			goto fail;
+		}
 
-static int __init q6_in_init(void) {
-	return misc_register(&q6_in_misc);
+		if (atomic_read(&pcm->in_stopped) &&
+					!atomic_read(&pcm->in_count)) {
+			mutex_unlock(&pcm->read_lock);
+			return 0;
+		}
+
+		data = q6asm_is_cpu_buf_avail(OUT, pcm->ac, &size, &idx);
+		if ((count >= size) && data) {
+			offset = pcm->in_frame_info[idx][1];
+			if (copy_to_user(buf, data+offset, size)) {
+				pr_aud_err("%s copy_to_user failed\n", __func__);
+				rc = -EFAULT;
+				goto fail;
+			}
+
+			count -= size;
+			buf += size;
+			atomic_dec(&pcm->in_count);
+			memset(&pcm->in_frame_info[idx], 0,
+						sizeof(uint32_t) * 2);
+
+			rc = q6asm_read(pcm->ac);
+			if (rc < 0) {
+				pr_aud_err("%s q6asm_read faile\n", __func__);
+				goto fail;
+			}
+			rmb();
+			break;
+		} else {
+			pr_aud_err("%s: short read data[%p] size[%d]\n",\
+						__func__, data, size);
+			break;
+		}
+	}
+	rc = buf-start;
+fail:
+	mutex_unlock(&pcm->read_lock);
+	return rc;
 }
 
-device_initcall(q6_in_init);
+static int pcm_in_release(struct inode *inode, struct file *file)
+{
+	int rc = 0;
+	struct timespec ts;
+	struct rtc_time tm;
+	struct pcm *pcm = file->private_data;
+
+	if (pcm == NULL) {
+		pr_aud_err("%s: Nothing need to be released.\n", __func__);
+		return 0;
+	}
+	if (pcm->ac) {
+		mutex_lock(&pcm->lock);
+	        if ((pcm->rec_mode != VOC_REC_NONE) && atomic_read(&pcm->in_enabled)) {
+        	        msm_disable_incall_recording(pcm->ac->session, pcm->rec_mode);
+	                pcm->rec_mode = VOC_REC_NONE;
+	        }
+
+		/* remove this session from topology list */
+		auddev_cfg_tx_copp_topology(pcm->ac->session,
+				DEFAULT_COPP_TOPOLOGY);
+		mutex_unlock(&pcm->lock);
+	}
+
+	rc = pcm_in_disable(pcm);
+	if (pcm->ac) {
+		pr_aud_info("[%s:%s] release session id[%d]\n", __MM_FILE__,
+				__func__, pcm->ac->session);
+		msm_clear_session_id(pcm->ac->session);
+		q6asm_audio_client_free(pcm->ac);
+	}
+
+	kfree(pcm);
+	getnstimeofday(&ts);
+	rtc_time_to_tm(ts.tv_sec, &tm);
+	pr_aud_info1("[ATS][stop_recording][successful] at %lld \
+		(%d-%02d-%02d %02d:%02d:%02d.%09lu UTC)\n",
+		ktime_to_ns(ktime_get()),
+		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
+	return rc;
+}
+
+static const struct file_operations pcm_in_fops = {
+	.owner		= THIS_MODULE,
+	.open		= pcm_in_open,
+	.read		= pcm_in_read,
+	.release	= pcm_in_release,
+	.unlocked_ioctl	= pcm_in_ioctl,
+};
+
+struct miscdevice pcm_in_misc = {
+	.minor	= MISC_DYNAMIC_MINOR,
+	.name	= "msm_pcm_in",
+	.fops	= &pcm_in_fops,
+};
+
+static int __init pcm_in_init(void)
+{
+	return misc_register(&pcm_in_misc);
+}
+
+device_initcall(pcm_in_init);

@@ -1,8 +1,6 @@
 /*
  * drivers/cpufreq/cpufreq_lionheart.c
  *
- * Patched & tweaked: knzo
- *
  * Based on the Conservative governor by:
  *
  *    Copyright (C)  2001 Russell King

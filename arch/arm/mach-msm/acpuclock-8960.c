@@ -89,21 +89,21 @@ acpuclk_set_rate footprint cpu1		: phy 0x889F1040 : virt 0xFE703040
 #define CPU_FOOT_PRINT_BASE_CPU0_VIRT		(MSM_KERNEL_FOOTPRINT_BASE + 0x0)
 static void set_acpuclk_foot_print(unsigned cpu, unsigned state)
 {
-	unsigned *status = (unsigned *)(CPU_FOOT_PRINT_BASE_CPU0_VIRT + 0x3C) + cpu;
+	unsigned *status = (unsigned *)(CPU_FOOT_PRINT_BASE_CPU0_VIRT + 0x42) + cpu;
 	*status = (CPU_FOOT_PRINT_MAGIC | state);
 	mb();
 }
 
 static void set_acpuclk_cpu_freq_foot_print(unsigned cpu, unsigned khz)
 {
-	unsigned *status = (unsigned *)(CPU_FOOT_PRINT_BASE_CPU0_VIRT + 0x30) + cpu;
+	unsigned *status = (unsigned *)(CPU_FOOT_PRINT_BASE_CPU0_VIRT + 0x42) + cpu;
 	*status = khz;
 	mb();
 }
 
 static void set_acpuclk_L2_freq_foot_print(unsigned khz)
 {
-	unsigned *status = (unsigned *)(CPU_FOOT_PRINT_BASE_CPU0_VIRT + 0x38);
+	unsigned *status = (unsigned *)(CPU_FOOT_PRINT_BASE_CPU0_VIRT + 0x34);
 	*status = khz;
 	mb();
 }
@@ -571,6 +571,7 @@ static struct acpu_level acpu_freq_tbl_8960_kraitv2_slow[] = {
         { 1, {  1728000, HFPLL, 1, 0, 0x3C }, L2(19), 1300000 },
         { 1, {  1809000, HFPLL, 1, 0, 0x3E }, L2(19), 1325000 },
 	{ 1, {  1890000, HFPLL, 1, 0, 0x40 }, L2(19), 1350000 },
+	{ 1, {  1998000, HFPLL, 1, 0, 0x42 }, L2(19), 1350000 },
 	{ 0, { 0 } }
 };
 
@@ -602,6 +603,7 @@ static struct acpu_level acpu_freq_tbl_8960_kraitv2_nom[] = {
         { 1, {  1728000, HFPLL, 1, 0, 0x3C }, L2(19), 1250000 },
         { 1, {  1809000, HFPLL, 1, 0, 0x3E }, L2(19), 1275000 },
 	{ 1, {  1890000, HFPLL, 1, 0, 0x40 }, L2(19), 1300000 },
+	{ 1, {  1998000, HFPLL, 1, 0, 0x42 }, L2(19), 1325000 },
 	{ 0, { 0 } }
 };
 
@@ -634,6 +636,7 @@ static struct acpu_level acpu_freq_tbl_8960_kraitv2_fast[] = {
         { 1, {  1728000, HFPLL, 1, 0, 0x3C }, L2(19), 1200000 },
         { 1, {  1809000, HFPLL, 1, 0, 0x3E }, L2(19), 1250000 },
 	{ 1, {  1890000, HFPLL, 1, 0, 0x40 }, L2(19), 1300000 },
+	{ 1, {  1998000, HFPLL, 1, 0, 0x42 }, L2(19), 1300000 },
 	{ 0, { 0 } }
 };
 

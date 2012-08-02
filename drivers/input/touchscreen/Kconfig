@@ -484,6 +484,11 @@ config TOUCHSCREEN_SYNAPTICS_3K
         help
           This enables support for Synaptics RMI4 over I2C based touchscreens.
 
+config TOUCHSCREEN_SYNAPTICS_SWEEP2WAKE
+	tristate "Sweep2Wake for SYNAPTICS_3k based touchscreens"
+	depends on TOUCHSCREEN_SYNAPTICS_3k
+	default n
+
 config TOUCHSCREEN_TOUCHRIGHT
 	tristate "Touchright serial touchscreen"
 	select SERIO

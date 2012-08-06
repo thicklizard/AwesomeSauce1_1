@@ -492,15 +492,16 @@ struct platform_device msm8960_device_rpm_regulator __devinitdata = {
 /* SAW regulator constraints */
 struct regulator_init_data msm_saw_regulator_pdata_s5 =
 	/*	      ID  vreg_name	       min_uV   max_uV */
-	SAW_VREG_INIT(S5, "8921_s5",	       850000, 1300000);
+	SAW_VREG_INIT(S5, "8921_s5",	       800000, 1400000);
 struct regulator_init_data msm_saw_regulator_pdata_s6 =
-	SAW_VREG_INIT(S6, "8921_s6",	       850000, 1300000);
+	SAW_VREG_INIT(S6, "8921_s6",	       800000, 1400000);
 
 /* PM8921 regulator constraints */
 struct pm8xxx_regulator_platform_data
 msm_pm8921_regulator_pdata[] __devinitdata = {
 	/*
 	 *		ID   name always_on pd min_uV   max_uV   en_t supply
+
 	 *	system_uA reg_ID
 	 */
 	PM8XXX_NLDO1200(L26, "8921_l26", 0, 1, 1050000, 1050000, 200, "8921_s7",

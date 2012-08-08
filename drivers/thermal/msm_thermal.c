@@ -128,8 +128,8 @@ static void check_temp(struct work_struct *work)
 
 		//low trip point
 		if ((temp >= msm_thermal_tuners_ins.allowed_low_high) &&
-		    (temp < msm_thermal_tuners_ins.allowed_mid_high) &&
-		    (cpu_policy->max > msm_thermal_tuners_ins.allowed_low_freq)) {
+		   (temp < msm_thermal_tuners_ins.allowed_mid_high) &&
+		   (cpu_policy->max > msm_thermal_tuners_ins.allowed_low_freq)) {
 			update_policy = 1;
 			/* save pre-throttled max freq value */
 			pre_throttled_max = cpu_policy->max;

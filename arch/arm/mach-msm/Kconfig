@@ -2289,6 +2289,12 @@ config ACPU_MAX_FREQ
 	  If set to non-zero number, will search for this frequency in
           frequency table and set as maximum supported frequency if found.
 
+config CPU_VOLTAGE_TABLE
+	bool "Enable CPU Voltage Table via sysfs for adjustements"
+	default n
+	help
+	Krait User Votlage Control
+
 config AUDIO_USAGE_FOR_POWER_CONSUMPTION
 	bool "AUDIO_USAGE_FOR_POWER_CONSUMPTION"
 	default n

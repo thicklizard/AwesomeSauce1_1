@@ -305,7 +305,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	}
 	selected_oom_adj = min_adj;
 
-	read_lock(&tasklist_lock);
+	rcu_read_lock();
 	for_each_process(tsk) {
 		struct task_struct *p;
 		int oom_adj;
@@ -360,12 +360,12 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			show_meminfo();
 			dump_tasks();
 		}
-		force_sig(SIGKILL, selected);
+		send_sig(SIGKILL, selected, 0);
 		rem -= selected_tasksize;
 	}
 	lowmem_print(4, "lowmem_shrink %lu, %x, return %d\n",
 		     sc->nr_to_scan, sc->gfp_mask, rem);
-	read_unlock(&tasklist_lock);
+	rcu_read_unlock();
 	return rem;
 }
 

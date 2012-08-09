@@ -1364,7 +1364,7 @@ if (buf) {
 mutex_lock(&driver_lock);
 
 for (i = 0; acpu_freq_tbl[i].speed.khz; i++) {
-/* updated to use uv required by 8x60 architecture - faux123 */
+/* updated to use uv required by 8x60 architecture -  */
 len += sprintf(buf + len, "%8u: %8d\n", acpu_freq_tbl[i].speed.khz,
 acpu_freq_tbl[i].vdd_core );
 }
@@ -1374,7 +1374,7 @@ mutex_unlock(&driver_lock);
 return len;
 }
 
-/* updated to use uv required by 8x60 architecture - faux123 */
+/* updated to use uv required by 8x60 architecture -  */
 void acpuclk_set_vdd(unsigned int khz, int vdd_uv) {
 
 int i;
@@ -1394,7 +1394,7 @@ continue;
 
 acpu_freq_tbl[i].vdd_core = new_vdd_uv;
 }
-pr_warn("faux123: user voltage table modified!\n");
+pr_warn(": user voltage table modified!\n");
 mutex_unlock(&driver_lock);
 }
 #endif /* CONFIG_CPU_VOTALGE_TABLE */

@@ -274,6 +274,7 @@ obj-$(CONFIG_MACH_FIGHTER) += htc_bdaddress.o htc_util.o
 obj-$(CONFIG_MACH_JET) += board-jet.o board-jet-regulator.o board-jet-gpio.o board-jet-audio.o
 obj-$(CONFIG_MACH_JET) += board-jet-keypad.o
 obj-$(CONFIG_MACH_JET) += htc_bdaddress.o htc_util.o
+obj-$(CONFIG_FORCE_FAST_CHARGE) += fastchg.o
 
 obj-$(CONFIG_MACH_JEWEL_DD) += board-jel_dd.o board-jel_dd-regulator.o board-jel_dd-gpio.o 
 obj-$(CONFIG_MACH_JEWEL_DD) += board-jel_dd-keypad.o

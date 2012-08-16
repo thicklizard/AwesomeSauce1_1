@@ -1,7 +1,7 @@
 /*
  * Author: Chad Froebel <chadfroebel@gmail.com>
  *
- * Ported to Sensation and extended : Jean-Pierre Rasquin <yank555.lu@gmail.com>
+ * 
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and

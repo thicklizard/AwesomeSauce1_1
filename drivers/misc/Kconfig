@@ -697,4 +697,5 @@ source "drivers/misc/lis3lv02d/Kconfig"
 source "drivers/misc/carma/Kconfig"
 source "drivers/misc/mpu3050/Kconfig"
 
+
 endif # MISC_DEVICES

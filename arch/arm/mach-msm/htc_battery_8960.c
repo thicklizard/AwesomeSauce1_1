@@ -35,9 +35,6 @@
 #include <linux/android_alarm.h>
 #include <linux/suspend.h>
 #include <linux/earlysuspend.h>
-#ifdef CONFIG_FORCE_FAST_CHARGE
-#include <linux/fastchg.h>
-#endif
 
 #include <mach/htc_gauge.h>
 #include <mach/htc_charger.h>
@@ -538,25 +535,9 @@ static void cable_status_notifier_func(enum usb_connect_type online)
 
 	switch (online) {
 	case CONNECT_TYPE_USB:
-	case CONNECT_TYPE_USB:
-#ifdef CONFIG_FORCE_FAST_CHARGE
-		/* If forced fast charge is enabled "always" or if no USB device detected, go AC */
-		if ((force_fast_charge == FAST_CHARGE_FORCE_AC) ||
-			(force_fast_charge == FAST_CHARGE_FORCE_AC_IF_NO_USB &&
-					     USB_peripheral_detected == USB_ACC_NOT_DETECTED )) {
-			BATT_LOG("cable USB forced to AC");
-			htc_batt_info.rep.charging_source = CHARGER_AC;
-			radio_set_cable_status(CHARGER_AC);
-		} else {
-			BATT_LOG("cable USB not forced to AC");
-			htc_batt_info.rep.charging_source = CHARGER_USB;
-			radio_set_cable_status(CHARGER_USB);
-		}
-#else
-		BATT_LOG("cable USB");
-		htc_batt_info.rep.charging_source = CHARGER_USB;
-		radio_set_cable_status(CHARGER_USB);
-#endif
+		BATT_LOG("USB charger");
+		htc_charger_event_notify(HTC_CHARGER_EVENT_SRC_USB);
+		/* radio_set_cable_status(CHARGER_USB); */
 		break;
 	case CONNECT_TYPE_AC:
 		BATT_LOG("5V AC charger");

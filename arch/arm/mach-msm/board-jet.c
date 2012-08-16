@@ -1559,7 +1559,7 @@ static struct camera_flash_info msm_camera_sensor_s5k3h2yx_flash_info = {
 
 static struct camera_flash_cfg msm_camera_sensor_s5k3h2yx_flash_cfg = {
 	.low_temp_limit		= 5,
-	.low_cap_limit		= 15,
+	.low_cap_limit		= 5,
 	.flash_info             = &msm_camera_sensor_s5k3h2yx_flash_info,
 };
 /* Andrew_Cheng linear led 20111205 ME */

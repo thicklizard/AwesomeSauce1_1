@@ -32,6 +32,9 @@
 #include <linux/input/mt.h>
 #include <mach/msm_hsusb.h>
 #include <linux/pl_sensor.h>
+#include <linux/s2w-switch.h>
+
+
 extern int usb_get_connect_type(void);
 
 //#define SYN_SUSPEND_RESUME_POWEROFF
@@ -1359,7 +1362,7 @@ static DEVICE_ATTR(fake_event, (S_IWUSR|S_IRUGO),
 
 #endif
 
-static struct kobject *android_touch_kobj;
+struct kobject *android_touch_kobj;
 
 static int synaptics_touch_sysfs_init(void)
 {
@@ -2529,6 +2532,7 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 	if (s2w_switch == 0) {
 		if (ret && ts->use_irq) /* if work was pending disable-count is now 2 */
 			enable_irq(client->irq);
+	}
 #endif
 
 	ts->pre_finger_data[0][0] = 0;
@@ -2556,10 +2560,12 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 	if (ret < 0)
 		i2c_syn_error_handler(ts, 0, "w:0", __func__);
         printk("[TP] disable palm supression\n");
-#ifdef SYN_SUSPEND_RESUME_POWEROFF
+
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_SWEEP2WAKE
 	if (s2w_switch == 0) {
 #endif
+
+#ifdef SYN_SUSPEND_RESUME_POWEROFF
 		if (ts->power)
 			ts->power(0);
 		else 
@@ -2591,7 +2597,7 @@ static int synaptics_ts_resume(struct i2c_client *client)
 		/* HW revision fix, this is not needed for all touch controllers!
 		 * suspend me for a short while, so that resume can wake me up the right way
 		 *
-		 * --NO IDEA IF THIS IS NEEDED ON THE ONE X, INCLUDE IT TO BE SURE FOR NOW!--
+		 * --NO IDEA IF THIS IS NEEDED ON THE EVO, INCLUDE IT TO BE SURE FOR NOW!--
 		 *
 		 */
 		ret = i2c_syn_write_byte_data(client,

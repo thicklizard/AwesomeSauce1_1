@@ -2212,8 +2212,8 @@ local_input:
 		rth->dst.error= -err;
 		rth->rt_flags 	&= ~RTCF_LOCAL;
 	}
-	hash = rt_hash(daddr, saddr, fl4.flowi4_iif, rt_genid(net));
-	rth = rt_intern_hash(hash, rth, skb, fl4.flowi4_iif);
+	hash = rt_hash(daddr, saddr, rth->rt_iif, rt_genid(net));
+	rth = rt_intern_hash(hash, rth, skb, rth->rt_iif);
 	err = 0;
 	if (IS_ERR(rth))
 		err = PTR_ERR(rth);

@@ -99,11 +99,11 @@ config CPU_FREQ_DEFAULT_GOV_SAKURATIVE
 	help
 	  Use the CPUFreq governor 'sakuractive' as default.
 
-config CPU_FREQ_DEFAULT_GOV_BADASS
-	bool "badass"
-	select CPU_FREQ_GOV_BADASS
+config CPU_FREQ_DEFAULT_GOV_brazilianwax
+	bool "brazilianwax"
+	select CPU_FREQ_GOV_brazilianwax
 	help
-	  Use the CPUFreq governor 'badass' as default.
+	  Use the CPUFreq governor 'brazilianwax' as default.
 
 config CPU_FREQ_DEFAULT_GOV_INTERACTIVEX
 	bool "interactiveX"
@@ -120,6 +120,26 @@ config CPU_FREQ_DEFAULT_GOV_SMOOTHASS
  	select CPU_FREQ_GOV_PERFORMANCE
  	help
  	  Use the CPUFreq governor 'smoothass' as default.
+
+config CPU_FREQ_DEFAULT_GOV_LAGFREE
+        bool "lagfree"
+        select CPU_FREQ_GOV_LAGFREE
+        select CPU_FREQ_GOV_PERFORMANCE
+        help
+          Use the CPUFreq governor 'lagfree' as default. This allows
+          you to get a full dynamic frequency capable system by simply
+          loading your cpufreq low-level hardware driver.
+          Be aware that not all cpufreq drivers support the lagfree
+          governor. If unsure have a look at the help section of the
+          driver. Fallback governor will be the performance governor
+
+config CPU_FREQ_DEFAULT_GOV_SavagedZen
+
+	bool "smartass"
+	select CPU_FREQ_GOV_SavagedZen
+	select CPU_FREQ_GOV_PERFORMANCE
+	help
+	  Use the CPUFreq governor 'SavagedZen' as default.
 
 config CPU_FREQ_DEFAULT_GOV_BRAZILIANWAX
 	bool "brazilianwax"
@@ -223,11 +243,11 @@ config CPU_FREQ_GOV_SAKURACTIVE
 
 	  If in doubt, say N.
 
-config CPU_FREQ_GOV_BADDASS
-	tristate "'badass' cpufreq governor"
+config CPU_FREQ_GOV_BRAZILIANWAX
+	tristate "'brazilianwax' cpufreq governor"
 	depends on CPU_FREQ
 	help
-	  'badass' - a "smart" governor
+	  'brazilianwax' - a "smart" governor
 
 	  If in doubt, say N.
 
@@ -252,47 +272,12 @@ config CPU_FREQ_GOV_LAGFREE
           environment.  The frequency is gracefully increased and decreased
           rather than jumping to 100% when speed is required.
 
-config LAGFREE_MAX_LOAD
-	int "Max CPU Load"
-	default 50
-	depends on CPU_FREQ_GOV_LAGFREE
-	help
-	  CPU freq will be increased if measured load > max_cpu_load;
+          To compile this driver as a module, choose M here: the
+          module will be called cpufreq_lagfree.
 
-config LAGFREE_MIN_LOAD
-	int "Min CPU Load"
-	default 15
-	depends on CPU_FREQ_GOV_LAGFREE
-	help
-	  CPU freq will be decrease if measured load < min_cpu_load;
+          For details, take a look at linux/Documentation/cpu-freq.
 
-config LAGFREE_FREQ_STEP_DOWN
-	int "Frequency Step Down"
-	default 108000
-	depends on CPU_FREQ_GOV_LAGFREE
-	help
-	  Max freqeuncy delta when ramping down.
-
-config LAGFREE_FREQ_SLEEP_MAX
-	int "Max Sleep frequeny"
-	default 384000
-	depends on CPU_FREQ_GOV_LAGFREE
-	help
-	  Max freqeuncy for screen off.
-
-config LAGFREE_FREQ_AWAKE_MIN
-	int "Min Awake frequeny"
-	default 384000
-	depends on CPU_FREQ_GOV_LAGFREE
-	help
-	  Min freqeuncy for screen on.
-
-config LAGFREE_FREQ_STEP_UP_SLEEP_PERCENT
-	int "Freq step up percent sleep"
-	default 20
-	depends on CPU_FREQ_GOV_LAGFREE
-	help
-	  Frequency percent to step up while screen off.
+          If in doubt, say N
 
 config CPU_FREQ_GOV_SMOOTHASS
 	tristate "'smoothass' cpufreq governor"
@@ -376,6 +361,15 @@ config CPU_FREQ_GOV_CONSERVATIVE
 	  module will be called cpufreq_conservative.
 
 	  For details, take a look at linux/Documentation/cpu-freq.
+
+	  If in doubt, say N.
+
+config CPU_FREQ_GOV_SavagedZen
+
+	tristate "'savagedzen' cpufreq governor"
+	depends on CPU_FREQ
+	help
+	  'Savaged-Zen' - a smartass based governor
 
 	  If in doubt, say N.
 

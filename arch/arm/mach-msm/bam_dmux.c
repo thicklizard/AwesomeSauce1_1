@@ -1136,6 +1136,7 @@ static void rx_timer_work_func(struct work_struct *work)
 	DBG("%s: exit\n", __func__);
 }
 
+static int bam_mux_tx_null_pkt = 0;
 static void bam_mux_tx_notify(struct sps_event_notify *notify)
 {
 	struct tx_pkt_info *pkt;
@@ -1148,6 +1149,13 @@ static void bam_mux_tx_notify(struct sps_event_notify *notify)
 	switch (notify->event_id) {
 	case SPS_EVENT_EOT:
 		pkt = notify->data.transfer.user;
+#if 1
+	if (!pkt) {
+		bam_mux_tx_null_pkt++;
+		DMUX_LOG_KERR("bam_mux_tx_null_pkt= %d\n", bam_mux_tx_null_pkt);
+		break;
+	}
+#endif
 		if (!pkt->is_cmd)
 			dma_unmap_single(NULL, pkt->dma_address,
 						pkt->skb->len,

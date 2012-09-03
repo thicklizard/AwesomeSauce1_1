@@ -687,6 +687,12 @@ config CABLE_DETECT_FIVE_POGOPIN_AUDIO_DOCK
         depends on CABLE_DETECT_8960
         default n
 
+config SOUND_CONTROL
+	bool "Enable support for Sound Control"
+	default n
+	help
+	Enable support for Sound Control
+
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
@@ -696,6 +702,5 @@ source "drivers/misc/ti-st/Kconfig"
 source "drivers/misc/lis3lv02d/Kconfig"
 source "drivers/misc/carma/Kconfig"
 source "drivers/misc/mpu3050/Kconfig"
-
 
 endif # MISC_DEVICES

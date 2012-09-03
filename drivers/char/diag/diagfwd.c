@@ -127,7 +127,7 @@ void __diag_smd_send_req(void)
 	int retry = 0;
 #if  DIAG_XPST
 	int type;
-	static int pkt_hdr;
+	static int pkt_hdr, first_pkt = 1;
 #endif
 
 #ifdef SDQXDM_DEBUG
@@ -216,10 +216,18 @@ drop:
 				}
 
 #if DIAG_XPST
-				if (pkt_hdr) {
+				/* HTC: only route to user space if the packet smd received
+				 * is the head of the full packet to avoid route wrong packet
+				 * to userspace. BTW, to avoid lost 1st packet (do not know if
+				 * the head of packet), we always check 1st packet. It should
+				 * be the 0xc sync packet.
+				 */
+				if (pkt_hdr || (first_pkt == 1)) {
+					if (unlikely(first_pkt == 1)) first_pkt = 0;
 					type = checkcmd_modem_epst(buf);
 					if (type) {
 						modem_to_userspace(buf, r, type, 0);
+						pkt_hdr = 1;
 						return;
 					}
 					pkt_hdr = 0;

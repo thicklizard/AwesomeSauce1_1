@@ -5,5 +5,6 @@
 
 void soundcontrol_updatevolume(unsigned int volumeboost);
 void soundcontrol_updateperf(bool highperf_enabled);
+void soundcontrol_reportjack(int jack_type);
 
 #endif

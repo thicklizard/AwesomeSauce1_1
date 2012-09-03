@@ -8,9 +8,9 @@
  *
  * For example, write "0,8" to /sys/module/lowmemorykiller/parameters/adj and
  * "1024,4096" to /sys/module/lowmemorykiller/parameters/minfree to kill processes
- * with a oom_score_adj value of 8 or higher when the free memory
- * drops below 4096 pages and kill processes with a oom_score_adj value of 0 or
- * higher when the free memory drops below 1024 pages.
+ * with a oom_adj value of 8 or higher when the free memory drops below 4096 pages
+ * and kill processes with a oom_adj value of 0 or higher when the free memory
+ * drops below 1024 pages.
  *
  * The driver considers memory used for caches to be free, but if a large
  * percentage of the cached memory is locked this can be very inaccurate
@@ -35,8 +35,8 @@
 #include <linux/oom.h>
 #include <linux/sched.h>
 #include <linux/notifier.h>
-#include <linux/memory.h>
 #include <linux/rcupdate.h>
+#include <linux/memory.h>
 #include <linux/memory_hotplug.h>
 #include <linux/dcache.h>
 #include <linux/fs.h>
@@ -308,21 +308,21 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 
 	rcu_read_lock();
 	for_each_process(tsk) {
-		struct task_struct *p;
+	struct task_struct *p;
 		int oom_adj;
 
-		if (tsk->flags & PF_KTHREAD)
+			if (tsk->flags & PF_KTHREAD)
 			continue;
 
-		p = find_lock_task_mm(tsk);
-		if (!p)
+			p = find_lock_task_mm(tsk);
+			if (!p)
 			continue;
-		oom_adj = p->signal->oom_adj;
-		if (oom_adj < min_adj) {
+			oom_adj = p->signal->oom_adj;
+			if (oom_adj < min_adj) {
 			task_unlock(p);
 			continue;
-		}
-		tasksize = get_mm_rss(p->mm);
+			}
+			tasksize = get_mm_rss(p->mm);
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;

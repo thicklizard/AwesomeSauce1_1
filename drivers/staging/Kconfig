@@ -160,6 +160,8 @@ source "drivers/staging/altera-stapl/Kconfig"
 
 source "drivers/staging/mei/Kconfig"
 
+source "drivers/staging/zram/Kconfig"
+
 source "drivers/staging/nvec/Kconfig"
 
 endif # STAGING

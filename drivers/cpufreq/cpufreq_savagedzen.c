@@ -97,14 +97,14 @@ static unsigned int up_min_freq;
  * to minimize wakeup issues.
  * Set sleep_max_freq=0 to disable this behavior.
  */
-#define DEFAULT_SLEEP_MAX_FREQ 368640
+#define DEFAULT_SLEEP_MAX_FREQ 384000
 static unsigned int sleep_max_freq;
 
 /*
  * The frequency to set when waking up from sleep.
  * When sleep_max_freq=0 this will have no effect.
  */
-#define DEFAULT_SLEEP_WAKEUP_FREQ 1024000
+#define DEFAULT_SLEEP_WAKEUP_FREQ 998000
 static unsigned int sleep_wakeup_freq;
 
 /*
@@ -138,13 +138,13 @@ static unsigned int ramp_down_step;
 /*
  * CPU freq will be increased if measured load > max_cpu_load;
  */
-#define DEFAULT_MAX_CPU_LOAD 75
+#define DEFAULT_MAX_CPU_LOAD 65
 static unsigned long max_cpu_load;
 
 /*
  * CPU freq will be decreased if measured load < min_cpu_load;
  */
-#define DEFAULT_MIN_CPU_LOAD 40
+#define DEFAULT_MIN_CPU_LOAD 50
 static unsigned long min_cpu_load;
 
 
@@ -294,7 +294,7 @@ static void cpufreq_savagedzen_freq_change_time_work(struct work_struct *work)
         struct cpufreq_policy *policy;
         unsigned int relation = CPUFREQ_RELATION_L;
         cpumask_t tmp_mask = work_cpumask;
-        for_each_cpu(cpu, tmp_mask) {
+        for_each_cpu(cpu, &tmp_mask) {
                 this_savagedzen = &per_cpu(savagedzen_info, cpu);
                 policy = this_savagedzen->cur_policy;
                 cpu_load = this_savagedzen->cur_cpu_load;

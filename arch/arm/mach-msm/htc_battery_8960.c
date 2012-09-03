@@ -537,17 +537,17 @@ static void cable_status_notifier_func(enum usb_connect_type online)
 	case CONNECT_TYPE_USB:
 		BATT_LOG("USB charger");
 		htc_charger_event_notify(HTC_CHARGER_EVENT_SRC_USB);
-		/* radio_set_cable_status(CHARGER_USB); */
+		radio_set_cable_status(CHARGER_USB);
 		break;
 	case CONNECT_TYPE_AC:
 		BATT_LOG("5V AC charger");
 		htc_charger_event_notify(HTC_CHARGER_EVENT_SRC_AC);
-		/* radio_set_cable_status(CHARGER_AC); */
+		radio_set_cable_status(CHARGER_AC);
 		break;
 	case CONNECT_TYPE_WIRELESS:
 		BATT_LOG("wireless charger (not supported)");
 		htc_charger_event_notify(HTC_CHARGER_EVENT_SRC_WIRELESS);
-		/* radio_set_cable_status(CHARGER_WIRELESS); */
+		radio_set_cable_status(CHARGER_WIRELESS);
 		break;
 	case CONNECT_TYPE_UNKNOWN:
 		BATT_ERR("unknown cable");
@@ -562,12 +562,12 @@ static void cable_status_notifier_func(enum usb_connect_type online)
 	case CONNECT_TYPE_NONE:
 		BATT_LOG("No cable exists");
 		htc_charger_event_notify(HTC_CHARGER_EVENT_SRC_NONE);
-		/* radio_set_cable_status(CHARGER_BATTERY); */
+		radio_set_cable_status(CHARGER_BATTERY);
 		break;
 	default:
 		BATT_LOG("unsupported connect_type=%d", online);
 		htc_charger_event_notify(HTC_CHARGER_EVENT_SRC_NONE);
-		/* radio_set_cable_status(CHARGER_BATTERY); */
+		radio_set_cable_status(CHARGER_BATTERY);
 		break;
 	}
 #if 0 /* MATT check porting */

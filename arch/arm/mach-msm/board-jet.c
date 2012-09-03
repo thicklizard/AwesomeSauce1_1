@@ -1382,6 +1382,10 @@ static int jet_s5k3h2yx_vreg_off(void)
 	/* VCM */
 	if (jet_use_ext_1v2() == 0)/*XA only*/
 		rc = camera_sensor_power_disable(reg_8921_l9);
+	else if (reg_8921_l17 != NULL) { /* needn't power-off l17 */
+		regulator_put(reg_8921_l17);
+		reg_8921_l17 = NULL;
+	}
 
 	if (rc < 0)
 		pr_err("[CAM] sensor_power_disable\
@@ -2467,9 +2471,9 @@ static void headset_init(void)
 		for (i = 0; i < 4; i++) {
 			rc = pm8xxx_gpio_config(headset_rx[i].gpio,
 						&headset_rx[i].config);
-			if (rc)
+			/*if (rc)
 				pr_info("[HS_BOARD] %s: Config ERROR: GPIO=%u, rc=%d\n",
-					__func__, headset_rx[i].gpio, rc);
+					__func__, headset_rx[i].gpio, rc);*/
 		}
 	} else {
 	/* XC and higher needs to config for level shift enable*/
@@ -2524,28 +2528,28 @@ static struct platform_device *headset_devices[] = {
 static struct headset_adc_config htc_headset_mgr_config[] = {
 	{
 		.type = HEADSET_MIC,
-		.adc_max = 1560,
-		.adc_min = 1244,
+		.adc_max = 1860,
+		.adc_min = 1444,
 	},
 	{
 		.type = HEADSET_BEATS,
-		.adc_max = 1243,
-		.adc_min = 916,
+		.adc_max = 1643,
+		.adc_min = 1016,
 	},
 	{
 		.type = HEADSET_BEATS_SOLO,
-		.adc_max = 915,
-		.adc_min = 566,
+		.adc_max = 1315,
+		.adc_min = 766,
 	},
 	{
 		.type = HEADSET_MIC, /* No Metrico device */
-		.adc_max = 565,
-		.adc_min = 255,
+		.adc_max = 765,
+		.adc_min = 405,
 	},
 	{
 		.type = HEADSET_NO_MIC,
-		.adc_max = 254,
-		.adc_min = 0,
+		.adc_max = 554,
+		.adc_min = 50,
 	},
 };
 
@@ -3381,6 +3385,19 @@ static struct platform_device qcedev_device = {
 };
 #endif
 
+static uint8_t cm3629_mapping_table[] = {0x0, 0x3, 0x6, 0x9, 0xC,
+			0xF, 0x12, 0x15, 0x18, 0x1B,
+			0x1E, 0x21, 0x24, 0x27, 0x2A,
+			0x2D, 0x30, 0x33, 0x36, 0x39,
+			0x3C, 0x3F, 0x43, 0x47, 0x4B,
+			0x4F, 0x53, 0x57, 0x5B, 0x5F,
+			0x63, 0x67, 0x6B, 0x70, 0x75,
+			0x7A, 0x7F, 0x84, 0x89, 0x8E,
+			0x93, 0x98, 0x9D, 0xA2, 0xA8,
+			0xAE, 0xB4, 0xBA, 0xC0, 0xC6,
+			0xCC, 0xD3, 0xDA, 0xE1, 0xE8,
+			0xEF, 0xF6, 0xFF};
+
 static struct cm3629_platform_data cm36282_pdata = {
 	.model = CAPELLA_CM36282,
 	.ps_select = CM3629_PS1_ONLY,
@@ -3398,6 +3415,9 @@ static struct cm3629_platform_data cm36282_pdata = {
 	.ps_conf2_val = CM3629_PS_ITB_1 | CM3629_PS_ITR_1 |
 			CM3629_PS2_INT_DIS | CM3629_PS1_INT_DIS,
 	.ps_conf3_val = CM3629_PS2_PROL_32,
+	.enable_polling_ignore = 1,
+	.mapping_table = cm3629_mapping_table,
+	.mapping_size = ARRAY_SIZE(cm3629_mapping_table),
 };
 
 static struct i2c_board_info i2c_CM36282_devices[] = {
@@ -3977,7 +3997,7 @@ static int jet_phy_init_seq[] = { 0x6f, 0x81, 0x3c, 0x82, -1};
 
 static struct msm_otg_platform_data msm_otg_pdata = {
 	.phy_init_seq		= jet_phy_init_seq,
-	.mode			= USB_PERIPHERAL,
+	.mode			= USB_OTG,
 	.otg_control		= OTG_PMIC_CONTROL,
 	.phy_type		= SNPS_28NM_INTEGRATED_PHY,
 	.vbus_power		= msm_hsusb_vbus_power,
@@ -4227,10 +4247,10 @@ static struct msm_spm_platform_data msm_spm_data[] __initdata = {
 #ifdef CONFIG_PERFLOCK
 static unsigned jet_perf_acpu_table[] = {
 	918000000, /* LOWEST */
-	1026000000, /* LOW */
+	1242000000, /* LOW */
 	1512000000, /* MEDIUM */
-	1728000000,/* HIGH */
-	1998000000, /* HIGHEST */
+	1890000000,/* HIGH */
+	2106000000, /* HIGHEST */
 };
 
 static struct perflock_platform_data jet_perflock_data = {
@@ -5134,7 +5154,7 @@ static struct pm8xxx_led_configure pm8921_led_info[] = {
 		.duites_size 	= 8,
 		.duty_time_ms 	= 64,
 		.lut_flag 	= PM_PWM_LUT_RAMP_UP | PM_PWM_LUT_PAUSE_HI_EN,
-		.out_current    = 40,
+		.out_current    = 10,
 		.duties		= {0, 15, 30, 45, 60, 75, 90, 100,
 				100, 90, 75, 60, 45, 30, 15, 0,
 				0, 0, 0, 0, 0, 0, 0, 0,

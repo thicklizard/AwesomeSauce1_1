@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2009, Code Aurora Forum. All rights reserved.
  *
@@ -15,8 +14,8 @@
 #ifndef AVS_H
 #define AVS_H
 
-#define VOLTAGE_MIN  850 /* mV */
-#define VOLTAGE_MAX  1400
+#define VOLTAGE_MIN  800 /* mV */
+#define VOLTAGE_MAX  1350
 #define VOLTAGE_STEP 25
 
 int __init avs_init(int (*set_vdd)(int), u32 freq_cnt, u32 freq_idx);

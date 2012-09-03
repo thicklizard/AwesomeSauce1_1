@@ -276,6 +276,7 @@ int checkcmd_modem_epst(unsigned char *buf)
 	if (*buf == 0xc && radio_initialized == 0) {
 		DIAG_INFO("%s: modem is ready\n", __func__);
 		radio_initialized = 1;
+		wake_up_interruptible(&driver->wait_q);
 		return CHECK_MODEM_ALIVE;
 	}
 	if (*buf == EPST_PREFIX)
@@ -730,6 +731,7 @@ static long diag2arm9_ioctl(struct file *file, unsigned int cmd, unsigned long a
 	uint16_t *table_ptr;
 #if !defined(CONFIG_DIAG_SDIO_PIPE)
 	static unsigned char phone_status[] = {0xc, 0x14, 0x3a, 0x7e};
+	int ret;
 #endif
 
 	if (_IOC_TYPE(cmd) != USB_DIAG_IOC_MAGIC)
@@ -811,13 +813,27 @@ static long diag2arm9_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		else
 			return 0;
 #else
-		DIAG_INFO("%s:modem status=%d\n", __func__, radio_initialized);
-		if (!radio_initialized && smd_diag_initialized)
+		if (!smd_diag_initialized) {
+			DIAG_INFO("%s:modem status=smd not ready\n", __func__);
+			return -EAGAIN;
+		}
+		if (!radio_initialized) {
 			smd_write(driver->ch, phone_status, 4);
-		if (copy_to_user(argp, &radio_initialized, sizeof(radio_initialized)))
-			return -EFAULT;
-		else
-			return 0;
+			ret = wait_event_interruptible_timeout(driver->wait_q,
+					radio_initialized != 0, 4 * HZ);
+			if (ret == 0)
+				ret = -ETIMEDOUT;
+			else
+				ret = 0;
+			DIAG_INFO("%s:modem status=%d %s\n", __func__, radio_initialized,
+				(ret == -ETIMEDOUT)?"(timeout)":"");
+			if (copy_to_user(argp, &radio_initialized, sizeof(radio_initialized)))
+				return -EFAULT;
+			else
+				return 0;
+		}
+		DIAG_INFO("%s:modem status=ready\n", __func__);
+		return -EEXIST;
 #endif
 		break;
 	default:

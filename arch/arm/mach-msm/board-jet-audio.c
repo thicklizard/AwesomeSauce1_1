@@ -250,9 +250,9 @@ static int msm8960_spkramp_event(struct snd_soc_dapm_widget *w,
 	pr_aud_info("%s() name = %s, %x\n", __func__, w->name, SND_SOC_DAPM_EVENT_ON(event));
 
 	if (SND_SOC_DAPM_EVENT_ON(event)) {
-		if (!strncmp(w->name, "Ext Spk Bottom Pos", 18))
+		if (!strncmp(w->name, "Ext Spk Bottom Pos", 30))
 			msm8960_ext_spk_power_amp_on(BOTTOM_SPK_AMP_POS);
-		else if (!strncmp(w->name, "Ext Spk Bottom Neg", 18))
+		else if (!strncmp(w->name, "Ext Spk Bottom Neg", 30))
 			msm8960_ext_spk_power_amp_on(BOTTOM_SPK_AMP_NEG);
 		else if (!strncmp(w->name, "Ext USB AMP Pos", 15))
 			msm8960_ext_spk_power_amp_on(USB_EXT_AMP_POS);
@@ -265,9 +265,9 @@ static int msm8960_spkramp_event(struct snd_soc_dapm_widget *w,
 		}
 
 	} else {
-		if (!strncmp(w->name, "Ext Spk Bottom Pos", 18))
+		if (!strncmp(w->name, "Ext Spk Bottom Pos", 30))
 			msm8960_ext_spk_power_amp_off(BOTTOM_SPK_AMP_POS);
-		else if (!strncmp(w->name, "Ext Spk Bottom Neg", 18))
+		else if (!strncmp(w->name, "Ext Spk Bottom Neg", 30))
 			msm8960_ext_spk_power_amp_off(BOTTOM_SPK_AMP_NEG);
 		else if (!strncmp(w->name, "Ext USB AMP Pos", 15))
 			msm8960_ext_spk_power_amp_off(USB_EXT_AMP_POS);

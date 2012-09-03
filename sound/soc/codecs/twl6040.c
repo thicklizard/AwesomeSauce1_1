@@ -177,6 +177,13 @@ static const int twl6040_vio_reg[TWL6040_VIOREGNUM] = {
 	TWL6040_REG_STATUS,
 };
 
+#ifdef CONFIG_SOUND_CONTROL
+struct twl6040_data * snd_data;
+struct snd_soc_codec * snd_codec;
+
+unsigned int volume_boost = 0;
+#endif
+
 /*
  * twl6040 vdd/vss registers:
  * registers under vdd/vss supplies can only be accessed
@@ -316,13 +323,52 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 
 	if (headset->ramp == TWL6040_RAMP_UP) {
 		/* ramp step up */
+#ifdef CONFIG_SOUND_CONTROL
+int volume = headset->left_vol + volume_boost;
+if (val < volume) {
+if (val + left_step > volume)
+val = volume;
+#else
 		if (val < headset->left_vol) {
+#endif
 			val += left_step;
 			reg &= ~TWL6040_HSL_VOL_MASK;
 			twl6040_write(codec, TWL6040_REG_HSGAIN,
 					(reg | (~val & TWL6040_HSL_VOL_MASK)));
 		} else {
 			left_complete = 1;
+#ifdef CONFIG_SOUND_CONTROL
+} else if (headset->ramp == TWL6040_RAMP_DOWN) {
+/* ramp step down*/
+int volume = headset->left_vol + volume_boost;
+if (val > volume) {
+if ((int)val - (int)left_step < volume)
+val = volume;
+else
+val -= left_step;
+
+reg &= ~TWL6040_HSL_VOL_MASK;
+twl6040_write(codec, TWL6040_REG_HSGAIN, reg |
+(~val & TWL6040_HSL_VOL_MASK));
+} else {
+left_complete = 1;
+}
+} else if (headset->ramp == TWL6040_RAMP_ZERO) {
+/* ramp step down to zero*/
+if (val > 0x0) {
+if ((int)val - (int)left_step < 0)
+val = 0;
+else
+val -= left_step;
+
+reg &= ~TWL6040_HSL_VOL_MASK;
+twl6040_write(codec, TWL6040_REG_HSGAIN, reg |
+(~val & TWL6040_HSL_VOL_MASK));
+} else {
+left_complete = 1;
+}
+}
+#else
 		}
 	} else if (headset->ramp == TWL6040_RAMP_DOWN) {
 		/* ramp step down */
@@ -335,6 +381,7 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 			left_complete = 1;
 		}
 	}
+#endif
 
 	/* right channel */
 	right_step = (right_step > 0xF) ? 0xF : right_step;
@@ -343,7 +390,14 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 
 	if (headset->ramp == TWL6040_RAMP_UP) {
 		/* ramp step up */
+#ifdef CONFIG_SOUND_CONTROL
+int volume = headset->right_vol + volume_boost;
+if (val < volume) {
+if (val + right_step > volume)
+val = volume;
+#else
 		if (val < headset->right_vol) {
+#endif
 			val += right_step;
 			reg &= ~TWL6040_HSR_VOL_MASK;
 			twl6040_write(codec, TWL6040_REG_HSGAIN,
@@ -351,6 +405,38 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 		} else {
 			right_complete = 1;
 		}
+#ifdef CONFIG_SOUND_CONTROL
+} else if (headset->ramp == TWL6040_RAMP_DOWN) {
+/* ramp step down*/
+int volume = headset->right_vol + volume_boost;
+if (val > volume) {
+if ((int)val - (int)right_step < volume)
+val = volume;
+else
+val -= right_step;
+
+reg &= ~TWL6040_HSR_VOL_MASK;
+twl6040_write(codec, TWL6040_REG_HSGAIN,
+reg | (~val << TWL6040_HSR_VOL_SHIFT));
+} else {
+right_complete = 1;
+}
+} else if (headset->ramp == TWL6040_RAMP_ZERO) {
+/* ramp step down to zero*/
+if (val > 0x0) {
+if ((int)val - (int)right_step < 0)
+val = 0;
+else
+val -= right_step;
+
+reg &= ~TWL6040_HSR_VOL_MASK;
+twl6040_write(codec, TWL6040_REG_HSGAIN,
+reg | (~val << TWL6040_HSR_VOL_SHIFT));
+} else {
+right_complete = 1;
+}
+}
+#else
 	} else if (headset->ramp == TWL6040_RAMP_DOWN) {
 		/* ramp step down */
 		if (val > 0x0) {
@@ -362,6 +448,7 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 			right_complete = 1;
 		}
 	}
+#endif
 
 	return left_complete & right_complete;
 }
@@ -472,7 +559,11 @@ static void twl6040_pga_hs_work(struct work_struct *work)
 			schedule_timeout_interruptible(msecs_to_jiffies(delay));
 	}
 
+#ifdef CONFIG_SOUND_CONTROL
+	if (headset->ramp == TWL6040_RAMP_ZERO) {
+#else
 	if (headset->ramp == TWL6040_RAMP_DOWN) {
+#endif
 		headset->active = 0;
 		complete(&headset->ramp_done);
 	} else {
@@ -563,8 +654,18 @@ static int pga_event(struct snd_soc_dapm_widget *w,
 			break;
 
 		/* don't use volume ramp for power-up */
+#ifdef CONFIG_SOUND_CONTROL
+if (w->shift == 2 || w->shift == 3) {
+out->left_step = out->left_vol + volume_boost;
+out->right_step = out->right_vol + volume_boost;
+} else {
+out->left_step = out->left_vol;
+out->right_step = out->right_vol;
+}
+#else
 		out->left_step = out->left_vol;
 		out->right_step = out->right_vol;
+#endif
 
 		if (!delayed_work_pending(work)) {
 			out->ramp = TWL6040_RAMP_UP;
@@ -581,7 +682,12 @@ static int pga_event(struct snd_soc_dapm_widget *w,
 			/* use volume ramp for power-down */
 			out->left_step = 1;
 			out->right_step = 1;
+#ifdef CONFIG_SOUND_CONTROL
+ 	if (w->shift == 2 || w->shift == 3)
+	out->ramp = TWL6040_RAMP_ZERO;
+#else
 			out->ramp = TWL6040_RAMP_DOWN;
+#endif
 			INIT_COMPLETION(out->ramp_done);
 
 			queue_delayed_work(queue, work,
@@ -700,6 +806,42 @@ static int headset_power_mode(struct snd_soc_codec *codec, int high_perf)
 
 	return 0;
 }
+
+#ifdef CONFIG_SOUND_CONTROL
+void soundcontrol_updatevolume(unsigned int volumeboost)
+{
+    struct twl6040_output * out = &snd_data->headset;
+    struct delayed_work * work = &snd_data->hs_delayed_work;
+
+    if (out->active && !delayed_work_pending(work)) {
+if (volumeboost > volume_boost)
+out->ramp = TWL6040_RAMP_UP;
+else
+out->ramp = TWL6040_RAMP_DOWN;
+
+volume_boost = volumeboost;
+
+out->left_step = out->left_vol + volume_boost;
+out->right_step = out->right_vol + volume_boost;
+
+queue_delayed_work(snd_data->hs_workqueue, work, msecs_to_jiffies(1));
+} else {
+volume_boost = volumeboost;
+    }
+
+    return;
+}
+EXPORT_SYMBOL(soundcontrol_updatevolume);
+
+void soundcontrol_updateperf(bool highperf_enabled)
+{
+    if (!headset_power_mode(snd_codec, highperf_enabled))
+snd_data->headset_mode = highperf_enabled ? 1 : 0;
+
+    return;
+}
+EXPORT_SYMBOL(soundcontrol_updateperf);
+#endif
 
 static int twl6040_hs_dac_event(struct snd_soc_dapm_widget *w,
 			struct snd_kcontrol *kcontrol, int event)
@@ -824,6 +966,12 @@ static int twl6040_put_volsw(struct snd_kcontrol *kcontrol,
 		if (!out->active)
 			return 1;
 	}
+#ifdef CONFIG_SOUND_CONTROL
+if (&twl6040_priv->headset.active) {
+ucontrol->value.integer.value[0] += volume_boost;
+ucontrol->value.integer.value[1] += volume_boost;
+}
+#endif
 
 	ret = snd_soc_put_volsw(kcontrol, ucontrol);
 	if (ret < 0)
@@ -966,21 +1114,21 @@ static DECLARE_TLV_DB_SCALE(afm_amp_tlv, -1800, 600, 0);
 
 /*
  * HSGAIN volume control:
- * from -30 to 0 dB in 2 dB steps
+ * from -24 to 30 dB in 2 dB steps
  */
-static DECLARE_TLV_DB_SCALE(hs_tlv, -3000, 200, 0);
+static DECLARE_TLV_DB_SCALE(hs_tlv, -2400, 1800, 0);
 
 /*
  * HFGAIN volume control:
- * from -52 to 6 dB in 2 dB steps
+ * from -42 to 20 dB in 2 dB steps
  */
-static DECLARE_TLV_DB_SCALE(hf_tlv, -5200, 200, 0);
+static DECLARE_TLV_DB_SCALE(hf_tlv, -4200, 1500, 0);
 
 /*
  * EPGAIN volume control:
- * from -24 to 6 dB in 2 dB steps
+ * from -15 to 24 dB in 2 dB steps
  */
-static DECLARE_TLV_DB_SCALE(ep_tlv, -2400, 200, 0);
+static DECLARE_TLV_DB_SCALE(ep_tlv, -1500, 1500, 0);
 
 /* Left analog microphone selection */
 static const char *twl6040_amicl_texts[] =
@@ -1696,6 +1844,11 @@ static int twl6040_probe(struct snd_soc_codec *codec)
 	snd_soc_add_controls(codec, twl6040_snd_controls,
 				ARRAY_SIZE(twl6040_snd_controls));
 	twl6040_add_widgets(codec);
+
+#ifdef CONFIG_SOUND_CONTROL
+snd_data = priv;
+snd_codec = codec;
+#endif
 
 	return 0;
 

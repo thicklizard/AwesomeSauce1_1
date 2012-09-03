@@ -1492,7 +1492,7 @@ static bool check_demotv_connect(void)
 	if (!external_common_state->demotv_desc_found)
 		goto l_result;
 
-	for (i=0; i<sizeof(demotv_list); i++)
+	for (i=1; i<sizeof(demotv_list); i++)
 		if (!strncmp(external_common_state->vendor_id, demotv_list[i].vendor_id, 3)) {
 			tv_found = true;
 			break;
